@@ -5,7 +5,126 @@ date: "11/20/2021"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
+```{r, message = FALSE, warning = FALSE}
 library(tidyverse)
 ```
+
+## Problem 1
+
+Read in the data.
+
+```{r, message = FALSE, warning = FALSE}
+homicide_df = 
+  read_csv("data/homicide-data.csv") %>% 
+  mutate(
+    city_state = str_c(city, state, sep = "_"),
+    resolved = case_when(
+      disposition == "Closed without arrest" ~ "unsolved",
+      disposition == "Open/No arrest"        ~ "unsolved",
+      disposition == "Closed by arrest"      ~ "solved",
+    )
+  ) %>% 
+  select(city_state, resolved) %>% 
+  filter(city_state != "Tulsa_AL")
+```
+
+Let's look at this a bit
+
+```{r, message = FALSE, warning = FALSE}
+aggregate_df = 
+  homicide_df %>% 
+  group_by(city_state) %>% 
+  summarize(
+    hom_total = n(),
+    hom_unsolved = sum(resolved == "unsolved")
+  )
+```
+
+Can I do a prop test for a single city?
+
+```{r, message = FALSE, warning = FALSE}
+prop.test(
+  aggregate_df %>% filter(city_state == "Baltimore_MD") %>% pull(hom_unsolved), 
+  aggregate_df %>% filter(city_state == "Baltimore_MD") %>% pull(hom_total)
+  ) %>% 
+  broom::tidy()
+```
+
+Try to iterate ........
+
+```{r}
+results_df = 
+  aggregate_df %>% 
+  mutate(
+    prop_tests = map2(.x = hom_unsolved, .y = hom_total, ~prop.test(x = .x, n = .y)),
+    tidy_tests = map(.x = prop_tests, ~broom::tidy(.x))
+  ) %>% 
+  select(-prop_tests) %>% 
+  unnest(tidy_tests) %>% 
+  select(city_state, estimate, conf.low, conf.high)
+```
+
+
+```{r}
+results_df %>% 
+  mutate(city_state = fct_reorder(city_state, estimate)) %>% 
+  ggplot(aes(x = city_state, y = estimate)) +
+  geom_point() + 
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high)) + 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+```
+
+
+
+## Problem 2
+
+##### Create a dataframe containing all file names for p2
+
+```{r}
+p2_list = 
+  list.files("./data/p2_data")
+```
+
+#####  Iterate over file names and read in data for each subject
+
+```{r, message = FALSE, warning = FALSE}
+p2_load = function(file_list) 
+  {
+  path = str_c("./data/p2_data/", file_list)
+  read_csv(path)
+  }
+p2_data = 
+  purrr::map(p2_list, p2_load) %>%
+  bind_rows() %>%
+  mutate(file_name = p2_list)
+```
+
+#####  Tidy the result
+
+```{r, message = FALSE, warning = FALSE}
+p2_tidy_data = 
+  p2_data %>%
+  mutate(file_name = gsub(".csv", "", file_name)) %>%
+  separate(file_name, into = c("trt_group", "id"), sep = "_") %>%
+  pivot_longer(week_1:week_8, 
+               names_to = "week",
+               values_to = "value") %>%
+  mutate(week = gsub("week_", "", week))
+p2_tidy_data
+```
+
+#####  Make a spaghetti plot showing observations on each subject over time
+
+```{r}
+p2_tidy_data %>%
+  ggplot(aes(x=week, y=value, color=id, group = id)) + 
+  geom_point() + 
+  geom_line() +
+  facet_grid(. ~ trt_group)
+```
+
+We can tell from the spaghetti plot above that the values of measurement in the control group is in general lower than the experiment group. The values of control group remained flat over the 8 weeks of follow-up, while the values of experiment group steadily increased over the 8 weeks of follow-up.
+
+
+## Problem 3
 
