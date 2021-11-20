@@ -154,7 +154,7 @@ iris_with_missing = iris %>%
 ### Write a function
 
 ```{r}
-na_filler = function(col_value) {
+fill_missing = function(col_value) {
   
   if (is.numeric(col_value)) {
     
@@ -174,5 +174,5 @@ na_filler = function(col_value) {
 ### Fill the NA values using map
 
 ```{r}
-iris_without_missing = map(iris_with_missing, na_filler)
+iris_without_missing = map(iris_with_missing, fill_missing)
 ```
